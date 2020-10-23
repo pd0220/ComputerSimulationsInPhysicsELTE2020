@@ -3,9 +3,11 @@
 
 // used headers and libraries
 #include <iostream>
-#include <cmath>
+#include <math.h>
 #include <string>
 #include <sstream>
+
+// -----------------------------------------------------------------------------------------------------------------
 
 // 4D vector struct
 template <typename T>
@@ -68,6 +70,8 @@ struct vector4
     }
 };
 
+// -----------------------------------------------------------------------------------------------------------------
+
 // output stream
 template <typename T>
 std::ostream &operator<<(std::ostream &o, vector4<T> const &v)
@@ -75,6 +79,8 @@ std::ostream &operator<<(std::ostream &o, vector4<T> const &v)
     o << v.x1 << ", " << v.x2 << ", " << v.v1 << ", " << v.v2;
     return o;
 }
+
+// -----------------------------------------------------------------------------------------------------------------
 
 // summation of vectors (+)
 template <typename T1, typename T2>
@@ -115,6 +121,8 @@ auto operator/(vector4<Tv> const &v, T const &a)
     using R = decltype(v.x1 / a);
     return vector4<R>{v.x1 / a, v.x2 / a, v.v1 / a, v.v2 / a};
 }
+
+// -----------------------------------------------------------------------------------------------------------------
 
 // dot product
 template <typename T1, typename T2>

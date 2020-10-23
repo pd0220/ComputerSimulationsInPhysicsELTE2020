@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include "vector4D.hh"
+
 // -----------------------------------------------------------------------------------------------------------------
 
 // adaptive Cash-Karp method implementation for numerical integration
@@ -65,6 +66,8 @@ auto CashKarpSolver(State const &y0, T const &t0, T const &t1, T h, RHS f, Callb
     }
     return y;
 }
+
+// -----------------------------------------------------------------------------------------------------------------
 
 // 4th order Runge-Kutta method
 template <typename State, typename T, typename RHS, typename Callback>

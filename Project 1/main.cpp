@@ -1,5 +1,4 @@
 // used headers and libraries
-#include <math.h>
 #include "DiffEqSolver.hh"
 
 // -----------------------------------------------------------------------------------------------------------------
@@ -13,10 +12,7 @@ int main(int, char **)
     double g = 9.81;
     // test equaion
     auto test = [&g](double, vector4<double> vec) -> vector4<double> {
-        return {vec.v1,
-                vec.v2,
-                0,
-                -g};
+        return {vec.v1, vec.v2, 0, -g};
     };
 
     // callback function
