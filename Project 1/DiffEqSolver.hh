@@ -47,11 +47,11 @@ auto CashKarpSolver(State const &y0, T const &t0, T const &t1, T h, RHS f, Callb
                                 ((T)(-277. / 14336.)) * k5 +
                                 ((T)(512. / 1771.) - (T)(1. / 4.)) * k6;
 
-            // reduce error state via some nomarlizing function
-            Delta = length(Delta_state);
-            // update step size
+            // reduce error state to scalar via some normalizing function
+            Delta = length(Delta_state) / dimension(Delta_state);
+            // update step size with 0.3 safety factor
             h = h * 0.3 * std::pow(std::abs(Delta0 / Delta), 0.2);
-
+            
         } while (Delta0 < Delta);
 
         // update step size

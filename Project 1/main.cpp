@@ -6,11 +6,11 @@
 // main function
 int main(int, char **)
 {
-    // delta error
+    // error
     double eps = 1e-3;
     // parameter(s)
     double g = 9.81;
-    // test equaion
+    // equaions of motion
     auto test = [&g](double, vector4<double> vec) -> vector4<double> {
         return {vec.v1, vec.v2, 0, -g};
     };

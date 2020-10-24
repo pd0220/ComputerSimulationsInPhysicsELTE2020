@@ -156,3 +156,10 @@ vector4<T> normalize(vector4<T> const &v)
     }
     return v / length(v);
 }
+
+// dimension (trivial but needed)
+template <typename T>
+T dimension(vector4<T>)
+{
+    return 4.;
+}
