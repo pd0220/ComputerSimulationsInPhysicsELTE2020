@@ -2,7 +2,6 @@
 // adaptive Cash-Karp and 4th order Runge-Kutta methods implemented
 
 // used headers and libraries
-#include <fstream>
 #include <iostream>
 #include "vector4D.hh"
 
@@ -10,19 +9,21 @@
 
 // adaptive Cash-Karp method implementation for numerical integration
 // via one RK5 and one embedded 4th order step
-template <typename State, typename T, typename RHS, typename Callback>
-auto CashKarpSolver(State const &y0, T const &t0, T const &t1, T h, RHS f, Callback cb, T const &eps)
+template <typename State, typename T, typename RHS, typename Callback, typename Stop>
+auto CashKarpSolver(State const &y0, T const &t0, T const &t1, T h, RHS f, Callback cb, T const &eps, Stop breakLoop)
 {
     // setting initial values
     // initial time
     T t = t0;
     // initial state
     State y = y0;
+    // save initial values
+    cb(t, y, h);
     // adaptive steps until reaching integration bound
     while (t < t1)
     {
         // set minimal error parameter
-        T Delta0 = length(eps * h * y);
+        T Delta0 = length(eps * h * f(t, y));
 
         // helper states to calculate steps
         State k1, k2, k3, k4, k5, k6;
@@ -47,15 +48,15 @@ auto CashKarpSolver(State const &y0, T const &t0, T const &t1, T h, RHS f, Callb
                                 ((T)(-277. / 14336.)) * k5 +
                                 ((T)(512. / 1771.) - (T)(1. / 4.)) * k6;
 
-            // reduce error state to scalar via some normalizing function
+            // reduce error state to scalar via some normalizing functionW
             Delta = length(Delta_state) / dimension(Delta_state);
-            // update step size with 0.3 safety factor
-            h = h * 0.3 * std::pow(std::abs(Delta0 / Delta), 0.2);
-            
+            // update step size with 0.95 safety factor
+            h = h * 0.95 * std::pow(std::abs(Delta0 / Delta), 0.2);
+
         } while (Delta0 < Delta);
 
         // update step size
-        h = h * 0.3 * std::pow(std::abs(Delta0 / Delta), 0.25);
+        h = h * 0.95 * std::pow(std::abs(Delta0 / Delta), 0.25);
 
         // taking the step
         y = y + (T)(37. / 378.) * k1 + (T)(250. / 621.) * k3 + (T)(125. / 594.) * k4 + (T)(512. / 1771.) * k6;
@@ -63,6 +64,10 @@ auto CashKarpSolver(State const &y0, T const &t0, T const &t1, T h, RHS f, Callb
 
         // callback function
         cb(t, y, h);
+
+        // stop before time bound
+        if (breakLoop(y))
+            break;
     }
     return y;
 }
@@ -70,8 +75,8 @@ auto CashKarpSolver(State const &y0, T const &t0, T const &t1, T h, RHS f, Callb
 // -----------------------------------------------------------------------------------------------------------------
 
 // 4th order Runge-Kutta method
-template <typename State, typename T, typename RHS, typename Callback>
-auto RK4Solver(State y0, T t0, T t1, T h, RHS f, Callback cb)
+template <typename State, typename T, typename RHS, typename Callback, typename Stop>
+auto RK4Solver(State y0, T t0, T t1, T h, RHS f, Callback cb, Stop breakLoop)
 {
 
     // setting initial values
@@ -79,6 +84,8 @@ auto RK4Solver(State y0, T t0, T t1, T h, RHS f, Callback cb)
     T t = t0;
     // initial state
     State y = y0;
+    // save initial values
+    cb(t, y, h);
     // steps until reaching integration bound
     while (t < t1)
     {
@@ -99,6 +106,10 @@ auto RK4Solver(State y0, T t0, T t1, T h, RHS f, Callback cb)
 
         // callback function
         cb(t, y, h);
+
+        // stop before time bound
+        if (breakLoop(y))
+            break;
     }
     return y;
 }

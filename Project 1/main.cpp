@@ -1,25 +1,54 @@
 // used headers and libraries
+#include <fstream>
 #include "DiffEqSolver.hh"
+
+// -----------------------------------------------------------------------------------------------------------------
+
+// constants and parameters
+//
+// error parameter
+double const eps = 1e-3;
+// gravitatinal acceleration [m / s^2]
+double const g = 9.80665;
+
+// -----------------------------------------------------------------------------------------------------------------
+
+// equations of motion
+//
+// simple gravitational acceleration
+auto GravityBasic = [&g = g](double, vector4<double> vec) -> vector4<double> {
+    return {vec.v1, vec.v2, 0, -g};
+};
+
+// -----------------------------------------------------------------------------------------------------------------
+
+// further functions
+//
+// filename to save data
+std::string const fileName = "GravityBasic_RK0.txt";
+
+// callback function ~ write current data to file
+auto Callback = [&fileName = fileName](double t, vector4<double> vec, double h) {
+    std::ofstream file;
+    file.open(fileName, std::fstream::app);
+    file << t << " " << vec.x1 << " " << vec.x2 << " " << vec.v1 << " " << vec.v2 << " " << h << std::endl;
+    file.close();
+};
+
+// break function ~ simulate only positive heigths
+auto BreakLoop = [](vector4<double> vec) {
+    // check if we are "above ground"
+    if (vec.x2 < 0)
+        return true;
+    else
+        return false;
+};
 
 // -----------------------------------------------------------------------------------------------------------------
 
 // main function
 int main(int, char **)
 {
-    // error
-    double eps = 1e-3;
-    // parameter(s)
-    double g = 9.81;
-    // equaions of motion
-    auto test = [&g](double, vector4<double> vec) -> vector4<double> {
-        return {vec.v1, vec.v2, 0, -g};
-    };
-
-    // callback function
-    auto Callback = [](double t, vector4<double> vec, double h) {
-        std::cout << t << " " << vec.x1 << " " << vec.x2 << " " << vec.v1 << " " << vec.v2 << " " << h << std::endl;
-    };
-
     // initial values
     vector4<double> init{0, 0, 10, 10};
     // initial time
@@ -30,6 +59,6 @@ int main(int, char **)
     double h = 0.01;
 
     // integration
-    CashKarpSolver(init, t0, t1, h, test, Callback, eps);
-    //RK4Solver(init, t0, t1, h, test, Callback);
+    //CashKarpSolver(init, t0, t1, h, GravityBasic, Callback, eps, BreakLoop);
+    RK4Solver(init, t0, t1, h, GravityBasic, Callback, BreakLoop);
 }
