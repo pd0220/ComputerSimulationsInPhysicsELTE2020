@@ -7,7 +7,7 @@
 // constants and parameters
 //
 // error parameter
-double const eps = 1e-5;
+double const eps = 1e-3;
 // gravitatinal acceleration [m / s^2]
 double const g = 9.80665;
 // 6 * pi * eta * R / m = zeta ~ Stokes drag parameter [1 / s]
@@ -32,7 +32,7 @@ auto GravityStokes = [&g = g, &zeta = zeta](double, vector4<double> vec) -> vect
 // further functions
 //
 // filename to save data
-std::string const fileName = "Stokes_RK3.txt";
+std::string const fileName = "GravityBasic_CK3.txt";
 
 // callback function ~ write current data to file
 auto Callback = [&fileName = fileName](double t, vector4<double> vec, double h) {
@@ -63,9 +63,9 @@ int main(int, char **)
     // final time
     double t1 = 10;
     // step size
-    double h = 0.001;
+    double h = 0.01;
 
     // integration methods
-    //CashKarpSolver(init, t0, t1, h, GravityStokes, Callback, eps, BreakLoop);
-    RK4Solver(init, t0, t1, h, GravityStokes, Callback, BreakLoop);
+    CashKarpSolver(init, t0, t1, h, GravityBasic, Callback, eps, BreakLoop);
+    //RK4Solver(init, t0, t1, h, GravityStokes, Callback, BreakLoop);
 }
