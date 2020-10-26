@@ -8,7 +8,7 @@
 // constants and parameters
 //
 // error parameter
-double const eps = 1e-5;
+double const eps = 1e-4;
 // gravitatinal acceleration [m / s^2]
 double const g = 9.80665;
 // 6 * pi * eta * R / m = zeta ~ Stokes drag parameter [1 / s]
@@ -27,6 +27,10 @@ double const T = 288.15;
 // exponent coefficient in barometric formula [1 / m]
 //double const lambda = M * g / R / T;
 double const lambda = 1e-2;
+// Newton's law of gravity pre-factor (gravitational constan * mass of Earth)
+double const preFactorNewton = 6.67408e-11 * 5.9722e24;
+// radius of Earth
+double const radiusEarth = 6.371e6;
 
 // -----------------------------------------------------------------------------------------------------------------
 
@@ -55,12 +59,18 @@ auto GravityNewtonBarometric = [&lambda = lambda, &rho0 = rho0](double, vector4<
     return {vec.v1, vec.v2, -barometric * velMagnitude * vec.v1, -g - barometric * velMagnitude * vec.v2};
 };
 
+// Newton's law of gravity
+auto GravityLaw = [&preFactorNewton = preFactorNewton, &radiusEarth = radiusEarth](double, vector4<double> vec) -> vector4<double> {
+    double denominator = std::pow(vec.x1 * vec.x1 + vec.x2 * vec.x2, 1.5);
+    return {vec.v1, vec.v2, -preFactorNewton / denominator * vec.x1, -preFactorNewton / denominator * vec.x2};
+};
+
 // -----------------------------------------------------------------------------------------------------------------
 
 // further functions
 //
 // filename to save data
-std::string fileName = "Barometric/Newton1.txt";
+std::string fileName = "None.txt";
 
 // callback functions ~ ho to write current data to file
 // 1.
@@ -88,6 +98,7 @@ auto Callback3 = [&fileName = fileName](double, vector4<double>, double) {
 
 // 4.
 auto Callback4 = [](double t, vector4<double> vec, double) {
+    // write to terminal only
     std::cout << t << " " << vec.x1 << " " << vec.x2 << std::endl;
 };
 
@@ -106,38 +117,44 @@ auto BreakLoop = [](vector4<double> vec) {
 int main(int, char **)
 {
     // initial values
-    vector4<double> initContainer = {0., 0., 150, 150.};
-
-    // file names
-    std::string fileNameNewton = "BarometricTest/NewtonDists.txt";
-    std::string fileNameNewtonBar = "BarometricTest/NewtonBarDists.txt";
+    std::vector<vector4<double>> initContainerBasic = {{0., 0., 5000., 5000.},
+                                                       {0., 0., 6000., 6000.},
+                                                       {0., 0., 7000., 7000.},
+                                                       {0., 0., 8000., 8000.}};
+    std::vector<vector4<double>> initContainerLaw = {{0., radiusEarth, 5000., 5000.},
+                                                     {0., radiusEarth, 6000., 6000.},
+                                                     {0., radiusEarth, 7000., 7000.},
+                                                     {0., radiusEarth, 8000., 8000.}};
 
     // initial time
     double t0 = 0;
     // final time
-    double t1 = 100;
+    double t1 = 1000000;
     // step size
     double h = 0.01;
 
+    // file names
+    std::vector<std::string> fileNameBasic{"GravityLawTest/Basic1.txt",
+                                           "GravityLawTest/Basic2.txt",
+                                           "GravityLawTest/Basic3.txt",
+                                           "GravityLawTest/Basic4.txt"};
+
+    std::vector<std::string> fileNameLaw{"GravityLawTest/Law1.txt",
+                                         "GravityLawTest/Law2.txt",
+                                         "GravityLawTest/Law3.txt",
+                                         "GravityLawTest/Law4.txt"};
+
     // simulations
-    for (int i = 1; i < 19; i++)
+    for (int i = 0; i < 4; i++)
     {
-        vector4<double> init{0., 0., i * 50., i * 50.};
-        std::ofstream file;
-        file.open(fileNameNewton, std::ofstream::app);
-        vector4<double> yRes = CashKarpSolver(init, t0, t1, h, GravityNewton, Callback3, eps, BreakLoop);
-        file << yRes.x1 << " " << yRes.x2 << std::endl;
-        file.close();
+        fileName = fileNameBasic[i];
+        CashKarpSolver(initContainerBasic[i], t0, t1, h, GravityBasic, Callback2, eps, BreakLoop);
     }
-    for (int i = 1; i < 19; i++)
+    for (int i = 0; i < 4; i++)
     {
-        vector4<double> init{0., 0., i * 50., i * 50.};
-        std::ofstream file;
-        file.open(fileNameNewtonBar, std::ofstream::app);
-        vector4<double> yRes = CashKarpSolver(init, t0, t1, h, GravityNewtonBarometric, Callback3, eps, BreakLoop);
-        file << yRes.x1 << " " << yRes.x2 << std::endl;
-        file.close();
+        fileName = fileNameLaw[i];
+        CashKarpSolver(initContainerLaw[i], t0, t1, h, GravityLaw, Callback2, eps, BreakLoop);
     }
-    
+
     //RK4Solver(init, t0, t1, h, GravityStokes, Callback1, BreakLoop);
 }
