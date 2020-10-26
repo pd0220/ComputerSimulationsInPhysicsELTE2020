@@ -25,7 +25,8 @@ double const R = 8.3144598;
 // standard temperature at zero height above sea level [K]
 double const T = 288.15;
 // exponent coefficient in barometric formula [1 / m]
-double const lambda = M * g / R / T;
+//double const lambda = M * g / R / T;
+double const lambda = 1e-2;
 
 // -----------------------------------------------------------------------------------------------------------------
 
@@ -61,12 +62,12 @@ auto GravityNewtonBarometric = [&lambda = lambda, &rho0 = rho0](double, vector4<
 // filename to save data
 std::string fileName = "Barometric/Newton1.txt";
 
-// callback functions ~ write current data to file
+// callback functions ~ ho to write current data to file
 // 1.
 auto Callback1 = [&fileName = fileName](double t, vector4<double> vec, double h) {
     std::ofstream file;
     file.open(fileName, std::fstream::app);
-    // everything
+    // print everything
     file << t << " " << vec.x1 << " " << vec.x2 << " " << vec.v1 << " " << vec.v2 << " " << h << std::endl;
     file.close();
 };
@@ -75,7 +76,7 @@ auto Callback1 = [&fileName = fileName](double t, vector4<double> vec, double h)
 auto Callback2 = [&fileName = fileName](double, vector4<double> vec, double) {
     std::ofstream file;
     file.open(fileName, std::fstream::app);
-    // only horizpntal and vertical coordinates
+    // only horizontal and vertical coordinates
     file << vec.x1 << " " << vec.x2 << std::endl;
     file.close();
 };
@@ -83,6 +84,11 @@ auto Callback2 = [&fileName = fileName](double, vector4<double> vec, double) {
 // 3.
 auto Callback3 = [&fileName = fileName](double, vector4<double>, double) {
     // do nothing
+};
+
+// 4.
+auto Callback4 = [](double t, vector4<double> vec, double) {
+    std::cout << t << " " << vec.x1 << " " << vec.x2 << std::endl;
 };
 
 // break function ~ simulate only positive heigths
@@ -100,30 +106,38 @@ auto BreakLoop = [](vector4<double> vec) {
 int main(int, char **)
 {
     // initial values
-    std::vector<vector4<double>> initContainer{{0., 0., 0.5, 0.5}, {0., 0., 1., 1.}, {0., 0., 1.3, 1.3}};
+    vector4<double> initContainer = {0., 0., 150, 150.};
+
     // file names
-    std::vector<std::string> fileNameStokes{"StokesVNewton/Stokes1.txt", "StokesVNewton/Stokes2.txt", "StokesVNewton/Stokes3.txt"};
-    std::vector<std::string> fileNameNewton{"StokesVNewton/Newton1.txt", "StokesVNewton/Newton2.txt", "StokesVNewton/Newton3.txt"};
+    std::string fileNameNewton = "BarometricTest/NewtonDists.txt";
+    std::string fileNameNewtonBar = "BarometricTest/NewtonBarDists.txt";
+
     // initial time
     double t0 = 0;
     // final time
-    double t1 = 10;
+    double t1 = 100;
     // step size
     double h = 0.01;
 
-    // simulations for *Stokes vs. Newton*
-    for (int i = 0; i < 3; i++)
+    // simulations
+    for (int i = 1; i < 19; i++)
     {
-        vector4<double> init = initContainer[i];
-        fileName = fileNameStokes[i];
-        CashKarpSolver(init, t0, t1, h, GravityStokes, Callback2, eps, BreakLoop);
+        vector4<double> init{0., 0., i * 50., i * 50.};
+        std::ofstream file;
+        file.open(fileNameNewton, std::ofstream::app);
+        vector4<double> yRes = CashKarpSolver(init, t0, t1, h, GravityNewton, Callback3, eps, BreakLoop);
+        file << yRes.x1 << " " << yRes.x2 << std::endl;
+        file.close();
     }
-    for (int i = 0; i < 3; i++)
+    for (int i = 1; i < 19; i++)
     {
-        vector4<double> init = initContainer[i];
-        fileName = fileNameNewton[i];
-        CashKarpSolver(init, t0, t1, h, GravityNewton, Callback2, eps, BreakLoop);
+        vector4<double> init{0., 0., i * 50., i * 50.};
+        std::ofstream file;
+        file.open(fileNameNewtonBar, std::ofstream::app);
+        vector4<double> yRes = CashKarpSolver(init, t0, t1, h, GravityNewtonBarometric, Callback3, eps, BreakLoop);
+        file << yRes.x1 << " " << yRes.x2 << std::endl;
+        file.close();
     }
-
+    
     //RK4Solver(init, t0, t1, h, GravityStokes, Callback1, BreakLoop);
 }
