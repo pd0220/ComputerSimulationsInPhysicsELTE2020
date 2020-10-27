@@ -8,14 +8,16 @@
 // constants and parameters
 //
 // error parameter
-double const eps = 1e-4;
+double const eps = 1e-5;
+// pi
+double const pi = 3.14159265358979323846;
 // gravitatinal acceleration [m / s^2]
 double const g = 9.80665;
 // 6 * pi * eta * R / m = zeta ~ Stokes drag parameter [1 / s]
-double const zeta = 1;
+double zeta = 1;
 // 0.5 * C * rho * A / m = zeta' ~ Newton drag parameter [1 / m]
 // (can be used as density parameter for barometric simulations)
-double const zetaPrime = 1.2250;
+double zetaPrime = 1.2250;
 // density of air at zero height above sea level [kg / m^3]
 double const rho0 = 1.2250;
 // molar mass of air [kg / mol]
@@ -116,16 +118,6 @@ auto BreakLoop = [](vector4<double> vec) {
 // main function
 int main(int, char **)
 {
-    // initial values
-    std::vector<vector4<double>> initContainerBasic = {{0., 0., 5000., 5000.},
-                                                       {0., 0., 6000., 6000.},
-                                                       {0., 0., 7000., 7000.},
-                                                       {0., 0., 8000., 8000.}};
-    std::vector<vector4<double>> initContainerLaw = {{0., radiusEarth, 5000., 5000.},
-                                                     {0., radiusEarth, 6000., 6000.},
-                                                     {0., radiusEarth, 7000., 7000.},
-                                                     {0., radiusEarth, 8000., 8000.}};
-
     // initial time
     double t0 = 0;
     // final time
@@ -133,27 +125,37 @@ int main(int, char **)
     // step size
     double h = 0.01;
 
-    // file names
-    std::vector<std::string> fileNameBasic{"GravityLawTest/Basic1.txt",
-                                           "GravityLawTest/Basic2.txt",
-                                           "GravityLawTest/Basic3.txt",
-                                           "GravityLawTest/Basic4.txt"};
-
-    std::vector<std::string> fileNameLaw{"GravityLawTest/Law1.txt",
-                                         "GravityLawTest/Law2.txt",
-                                         "GravityLawTest/Law3.txt",
-                                         "GravityLawTest/Law4.txt"};
-
+    // velocity magnitude
+    double vMagnitude = 1;
+    // file name to save data
+    fileName = "Angles/Newton.txt";
+    // number of datapoints
+    int N = 200;
     // simulations
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < N; i++)
     {
-        fileName = fileNameBasic[i];
-        CashKarpSolver(initContainerBasic[i], t0, t1, h, GravityBasic, Callback2, eps, BreakLoop);
-    }
-    for (int i = 0; i < 4; i++)
-    {
-        fileName = fileNameLaw[i];
-        CashKarpSolver(initContainerLaw[i], t0, t1, h, GravityLaw, Callback2, eps, BreakLoop);
+        // set zeta [0, 20]
+        zetaPrime = double(i) / double(N) * 20;
+        // run simulation with given initial angle and zeta
+        std::ofstream file;
+        // loop for angle values
+        for (int j = 0; j < N; j++)
+        {
+            // set angle
+            double phi = j * pi / 2 / N;
+            // determine initial velocities for x and z directions
+            double vx = vMagnitude * std::cos(phi);
+            double vz = vMagnitude * std::sin(phi);
+            // initial values
+            vector4<double> init = {0., 0., vx, vz};
+            // results
+            vector4<double> yRes = CashKarpSolver(init, t0, t1, h, GravityNewton, Callback3, eps, BreakLoop);
+            // write endpoint horizontal distance to file
+            file.open(fileName, std::ofstream::app);
+            file << yRes.x1 << " ";
+            file.close();
+        }
+        file << std::endl;
     }
 
     //RK4Solver(init, t0, t1, h, GravityStokes, Callback1, BreakLoop);
