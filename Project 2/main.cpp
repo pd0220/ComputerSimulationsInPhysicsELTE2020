@@ -7,8 +7,11 @@
 // ----------------------------------------------------------------------------------
 
 // constant
-// number of Monte Carlo sweeps
-int const N_MC = 100000;
+// number of Monte Carlo sweeps...
+// ... for autocorrelation times estimation
+int const N_MC_autoCorr = 1000;
+// ... for simulation
+int const N_MC_simulation = 1000000;
 
 // ----------------------------------------------------------------------------------
 
@@ -40,11 +43,37 @@ auto PeriodicBoundary = [](int const &tau, int const &Nt) {
 // ----------------------------------------------------------------------------------
 
 // calculate mean
-auto Mean = [](std::vector<double> const &vec) {
-    double tmp = 0;
+auto Mean = [](std::vector<double> const &vec, int const &Nt) {
+    double tmp = 0.;
     for (double i : vec)
         tmp += i;
-    return tmp / static_cast<int>(vec.size());
+    return tmp / Nt;
+};
+
+// ----------------------------------------------------------------------------------
+
+// calculate variance
+auto Variance = [](std::vector<double> const &vec, int const &Nt) {
+    double tmp = 0.;
+    for (double i : vec)
+        tmp += sq(i);
+    return tmp / (Nt - 1);
+};
+
+// ----------------------------------------------------------------------------------
+
+// calculate two-point correlation function with given time difference
+auto TwoPointCorr = [](std::vector<double> const &vec, int const &Nt, int const &deltaTau) {
+    double tmp = 0.;
+    // loop for data points
+    for (int iOuter = 0; iOuter < Nt; iOuter++)
+    {
+        // index for time translated datapoint (with periodic boundary conditions)
+        int iInner = (iOuter + deltaTau) % Nt;
+        tmp += vec[iOuter] * vec[iInner];
+    }
+    // return result
+    return tmp / (Nt - 1);
 };
 
 // ----------------------------------------------------------------------------------
@@ -63,12 +92,13 @@ auto HarmOsc_S = [](double const &mass, double const &frequency, double const &p
 // ----------------------------------------------------------------------------------
 
 // main function
-int main(int, char **)
+// argv[1] --> h
+int main(int, char **argv)
 {
     // initial boundary for variations of paths
-    double hInit = 0.5;
+    double hInit = std::atof(argv[1]);
     // number of discretised time steps
-    int Nt = 30;
+    int Nt = 120;
     // mass
     double mass = 1.;
     // frequency
@@ -91,10 +121,10 @@ int main(int, char **)
     // initial path (hot start)
     std::vector<double> pathInit(Nt);
     // fill initial path
-    std::generate(pathInit.begin(), pathInit.end(), []() { return 0.; });
+    std::generate(pathInit.begin(), pathInit.end(), []() { return 10.; });
 
     //  ///////////\\\\\\\\\\\ 
-    // ||| SIMULATION START |||
+    // ||| AUTOCORRELATIONS |||
     //  \\\\\\\\\\\///////////
 
     // declaring vector containers
@@ -105,7 +135,7 @@ int main(int, char **)
     // path to update iteratively
     std::vector<double> pathN = pathInit;
     // start loop for sweeps
-    for (int iSweep = 0; iSweep < N_MC; iSweep++)
+    for (int iSweep = 0; iSweep < N_MC_autoCorr; iSweep++)
     {
         // determine which sites to visit in given MC sweep
         std::generate(visitSites.begin(), visitSites.end(), randInt);
@@ -134,10 +164,92 @@ int main(int, char **)
         }
 
         // calculate mean
-        double mean = Mean(pathN);
+        double mean = Mean(pathN, Nt);
+        // calculate variance
+        double var = Variance(pathN, Nt);
 
-        for (double i : pathN)
-            std::cout << i << " ";
-        std::cout << std::endl;
+        // calculate two-point correlation function to estimate autocorrelation times
+        double tmpCorr = 0.;
+        for (int tau = 0; tau < Nt; tau++)
+        {
+            tmpCorr += TwoPointCorr(pathN, Nt, tau);
+        }
+        //std::cout << tmpCorr / Nt << std::endl;
     }
+
+    //  ///////////\\\\\\\\\\\ 
+    // ||| SIMULATION START |||
+    //  \\\\\\\\\\\///////////
+
+    // ideal step size determined from previous part via python analysis ~ hard coded here...
+    // step size for fastest termalisation
+    int const hStep = 25;
+    // determined autocorrelation time for the corresponding step size (we will mulitply it with 100... just in case)
+    int const tauExp = 200;
+
+    // MEASUREMENT
+    std::vector<double> meansMeasured;
+    std::vector<double> varianceMeasured;
+    std::vector<double> autoCorrMeasured;
+
+    // path to update iteratively
+    pathN = pathInit;
+    // separation number
+    int sepTrigger = 1;
+    // start loop for sweeps
+    for (int iSweep = 0; iSweep < N_MC_simulation; iSweep++)
+    {
+        // determine which sites to visit in given MC sweep
+        std::generate(visitSites.begin(), visitSites.end(), randInt);
+        // generate random numbers for acceptance of site updates
+        std::generate(acceptanceVec.begin(), acceptanceVec.end(), rand_01);
+
+        // loop for sites
+        for (int iSite = 0; iSite < Nt; iSite++)
+        {
+            // which site to update in the time lattice
+            int tau = visitSites[iSite];
+            // time slices ~ before and after
+            std::pair<int, int> tauBA = PeriodicBoundary(tau, Nt);
+            int tauBefore = tauBA.first, tauAfter = tauBA.second;
+            // possible new coordinate in path at the chosen site
+            double tmpSite = pathN[tau] + randReal();
+
+            // calculate difference in Euclidean action (only one member of the summation) ~ S_new - S_old
+            double sOld = HarmOsc_S(mass, frequency, pathN[tauBefore], pathN[tau], pathN[tauAfter]);
+            double sNew = HarmOsc_S(mass, frequency, pathN[tauBefore], tmpSite, pathN[tauAfter]);
+            double deltaS = sNew - sOld;
+
+            // accept or reject change in site
+            if (Rate(deltaS) > acceptanceVec[iSite])
+                pathN[tau] = tmpSite;
+        }
+
+        // MEASUREMENTS
+        // to save or not to save...
+        sepTrigger++;
+        if (sepTrigger % tauExp == 0)
+        {
+            // calculate mean
+            meansMeasured.push_back(Mean(pathN, Nt));
+            // calculate variance
+            varianceMeasured.push_back(Variance(pathN, Nt));
+
+            // calculate two-point correlation function to estimate autocorrelation times
+            double tmpCorr = 0.;
+            for (int tau = 0; tau < Nt; tau++)
+            {
+                tmpCorr += TwoPointCorr(pathN, Nt, tau);
+            }
+
+            // averaged autocorrelation function over time separation
+            autoCorrMeasured.push_back(tmpCorr / Nt);
+
+            // jackknife analysis in outer python notebook
+        }
+    }
+
+    // write results to screen
+    for (int i = 0; i < static_cast<int>(meansMeasured.size()); i++)
+        std::cout << meansMeasured[i] << " " << varianceMeasured[i] << " " << autoCorrMeasured[i] << std::endl;
 }
