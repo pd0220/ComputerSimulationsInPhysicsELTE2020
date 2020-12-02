@@ -11,7 +11,7 @@
 // ... for autocorrelation times estimation
 int const N_MC_autoCorr = 1000;
 // ... for simulation
-int const N_MC_simulation = 1000000;
+int const N_MC_simulation = (int)(1e6);
 
 // ----------------------------------------------------------------------------------
 
@@ -42,22 +42,12 @@ auto PeriodicBoundary = [](int const &tau, int const &Nt) {
 
 // ----------------------------------------------------------------------------------
 
-// calculate mean
-auto Mean = [](std::vector<double> const &vec, int const &Nt) {
+// calculate nth moment of position
+auto MomentNth = [](std::vector<double> const &vec, int const &order, int const &Nt) {
     double tmp = 0.;
     for (double i : vec)
-        tmp += i;
-    return tmp / Nt;
-};
-
-// ----------------------------------------------------------------------------------
-
-// calculate variance
-auto Variance = [](std::vector<double> const &vec, int const &Nt) {
-    double tmp = 0.;
-    for (double i : vec)
-        tmp += sq(i);
-    return tmp / (Nt - 1);
+        tmp += std::pow(i, order);
+    return tmp / (double)Nt;
 };
 
 // ----------------------------------------------------------------------------------
@@ -73,55 +63,133 @@ auto TwoPointCorr = [](std::vector<double> const &vec, int const &Nt, int const 
         tmp += vec[iOuter] * vec[iInner];
     }
     // return result
-    return tmp / (Nt - 1);
+    return tmp / (double)(Nt - 1);
 };
 
 // ----------------------------------------------------------------------------------
 
 // harmonic oscillator Euclidean action contribution from one coordinate
-auto HarmOsc_S = [](double const &mass, double const &frequency, double const &pathBefore, double const &pathNow, double const &pathAfter) {
+auto HarmOsc_S = [](double const &latticeSpacing, double const &mass, double const &omega, double const &pathNow, double const &pathAfter) {
     // kinetic part
-    double kin = sq(pathAfter - pathBefore);
+    double kin = sq((pathAfter - pathNow) / latticeSpacing);
     // potential part
-    double pot = sq(frequency * pathNow);
+    double pot = sq(omega * pathNow);
 
     // return action contribution
-    return 0.5 * mass * (kin + pot);
+    return latticeSpacing * 0.5 * mass * (kin + pot);
+};
+
+// ----------------------------------------------------------------------------------
+
+// anharmonic oscillator Euclidean action contribution from one coordinate
+auto AnHarmOsc_S = [](double const &latticeSpacing, double const &mass, double const &mu, double const &lambda, double const &pathNow, double const &pathAfter) {
+    // kinetic part
+    double kin = 0.5 * mass * sq((pathAfter - pathNow) / latticeSpacing);
+    // potential part
+    double pot = -0.5 * mu * sq(pathNow) + lambda * sq(sq(pathNow)) + 1;
+
+    // return action contribution
+    return latticeSpacing * (kin + pot);
+};
+
+// ----------------------------------------------------------------------------------
+
+// Morse potential Euclidean action contribution from one coordinate
+auto Morse_S = [](double const &latticeSpacing, double const &mass, double const &lambda, double const &x, double const &pathNow, double const &pathAfter) {
+    // kinetic part
+    double kin = 0.5 * mass * sq((pathAfter - pathNow) / latticeSpacing);
+    // potential part
+    double diff = pathNow - x;
+    double pot = sq(lambda) * (std::exp(-2 * diff) - 2 * std::exp(-diff));
+
+    // return action contribution
+    return latticeSpacing * (kin + pot);
+};
+
+// ----------------------------------------------------------------------------------
+
+// Pöschl-Teller potential Euclidean action contribution from one coordinate
+auto PT_S = [](double const &latticeSpacing, double const &mass, double const &lambda, double const &pathNow, double const &pathAfter) {
+    // kinetic part
+    double kin = 0.5 * mass * sq((pathAfter - pathNow) / latticeSpacing);
+    // potential part
+    double pot = -lambda * (lambda + 1) / 2 / sq(std::cosh(pathNow));
+
+    // return action contribution
+    return latticeSpacing * (kin + pot);
+};
+
+// ----------------------------------------------------------------------------------
+
+// finite well potential Euclidean action contribution from one coordinate
+auto Well_S = [](double const &latticeSpacing, double const &mass, double const &lambda, double const &a, double const &pathNow, double const &pathAfter) {
+    // kinetic part
+    double kin = 0.5 * mass * sq((pathAfter - pathNow) / latticeSpacing);
+    // potential part
+    double pot = 0.;
+    if (std::abs(pathNow) <= a)
+        pot = -lambda;
+   
+    // return action contribution
+    return latticeSpacing * (kin + pot);
+};
+
+// ----------------------------------------------------------------------------------
+
+// Lennard-Jones potential Euclidean action contribution from one coordinate
+auto LJ_S = [](double const &latticeSpacing, double const &mass, double const &epsilon, double const &sigma, double const &pathNow, double const &pathAfter) {
+    // kinetic part
+    double kin = 0.5 * mass * sq((pathAfter - pathNow) / latticeSpacing);
+    // potential part
+    double pot = 4 * epsilon * (std::pow(sigma / pathNow, 12) - std::pow(sigma / pathNow, 6));
+   
+    // return action contribution
+    return latticeSpacing * (kin + pot);
+};
+
+// ----------------------------------------------------------------------------------
+
+// Coulomb potential Euclidean action contribution from one coordinate
+auto Coulomb_S = [](double const &latticeSpacing, double const &mass, double const &alpha, double const &pathNow, double const &pathAfter) {
+    // kinetic part
+    double kin = 0.5 * mass * sq((pathAfter - pathNow) / latticeSpacing);
+    // potential part
+    double pot = - alpha / pathNow;
+   
+    // return action contribution
+    return latticeSpacing * (kin + pot);
 };
 
 // ----------------------------------------------------------------------------------
 
 // main function
-// argv[1] --> h
-int main(int, char **argv)
+int main(int, char **)
 {
     // initial boundary for variations of paths
-    double hInit = std::atof(argv[1]);
+    double hInit = 0.5;
     // number of discretised time steps
     int Nt = 120;
-    // mass
+    // harmonic oscillator parameters
     double mass = 1.;
-    // frequency
-    double frequency = 1.;
+    double omega = 1.;
+    // lattice spacing
+    double latticeSpacing = 1.;
 
     // random number generation with Mersenne Twister
     std::random_device rd{};
     std::mt19937 gen(rd());
-    // uniform real distribution with fixed symmetric boundaries --> path variation
-    std::uniform_real_distribution distrReal(-hInit, hInit);
-    // uniform integer distributin from 0 to (Nt-1) --> site visiting
+    // uniform real distribution with fixed symmetric boundaries --> path variation & change acceptance for desired distribution ~ detailed balance, etc.
+    std::uniform_real_distribution distrReal(0., 1.);
+    // uniform integer distributin from 0 to (Nt - 1) --> site visiting
     std::uniform_int_distribution distrInt(0, Nt - 1);
-    // uniform real distribution from 0 to 1 --> change acceptance for desired distribution ~ detailed balance, etc.
-    std::uniform_real_distribution distr01(0., 1.);
     // random number generator lambdas
     auto randReal = [&distrReal, &gen]() { return (double)distrReal(gen); };
     auto randInt = [&distrInt, &gen]() { return (int)distrInt(gen); };
-    auto rand_01 = [&distr01, &gen]() { return (double)distr01(gen); };
 
-    // initial path (hot start)
+    // initial path (cold start)
     std::vector<double> pathInit(Nt);
     // fill initial path
-    std::generate(pathInit.begin(), pathInit.end(), []() { return 10.; });
+    std::generate(pathInit.begin(), pathInit.end(), []() { return 0.; });
 
     //  ///////////\\\\\\\\\\\ 
     // ||| AUTOCORRELATIONS |||
@@ -135,12 +203,13 @@ int main(int, char **argv)
     // path to update iteratively
     std::vector<double> pathN = pathInit;
     // start loop for sweeps
+    /*
     for (int iSweep = 0; iSweep < N_MC_autoCorr; iSweep++)
     {
         // determine which sites to visit in given MC sweep
         std::generate(visitSites.begin(), visitSites.end(), randInt);
         // generate random numbers for acceptance of site updates
-        std::generate(acceptanceVec.begin(), acceptanceVec.end(), rand_01);
+        std::generate(acceptanceVec.begin(), acceptanceVec.end(), randReal);
 
         // loop for sites
         for (int iSite = 0; iSite < Nt; iSite++)
@@ -149,60 +218,170 @@ int main(int, char **argv)
             int tau = visitSites[iSite];
             // time slices ~ before and after
             std::pair<int, int> tauBA = PeriodicBoundary(tau, Nt);
-            int tauBefore = tauBA.first, tauAfter = tauBA.second;
+            //int tauBefore = tauBA.first;
+            int tauAfter = tauBA.second;
             // possible new coordinate in path at the chosen site
-            double tmpSite = pathN[tau] + randReal();
+            double tmpSite = pathN[tau] + hInit * (randReal() - 0.5);
 
             // calculate difference in Euclidean action (only one member of the summation) ~ S_new - S_old
-            double sOld = HarmOsc_S(mass, frequency, pathN[tauBefore], pathN[tau], pathN[tauAfter]);
-            double sNew = HarmOsc_S(mass, frequency, pathN[tauBefore], tmpSite, pathN[tauAfter]);
+            double sOld = HarmOsc_S(latticeSpacing, mass, omega, pathN[tau], pathN[tauAfter]);
+            double sNew = HarmOsc_S(latticeSpacing, mass, omega, tmpSite, pathN[tauAfter]);
             double deltaS = sNew - sOld;
 
             // accept or reject change in site
-            if (Rate(deltaS) > acceptanceVec[iSite])
+            if (Rate(deltaS) > acceptanceVec[iSite] || Rate(deltaS) == 1)
                 pathN[tau] = tmpSite;
         }
-
-        // calculate mean
-        double mean = Mean(pathN, Nt);
-        // calculate variance
-        double var = Variance(pathN, Nt);
-
-        // calculate two-point correlation function to estimate autocorrelation times
-        double tmpCorr = 0.;
-        for (int tau = 0; tau < Nt; tau++)
-        {
-            tmpCorr += TwoPointCorr(pathN, Nt, tau);
-        }
-        //std::cout << tmpCorr / Nt << std::endl;
     }
+    */
+
+    //  ///////////\\\\\\\\\\\ 
+    // ||| ANALYTICAL TESTS |||
+    //  \\\\\\\\\\\///////////
+
+    // ideal step size determined from previous part via python analysis ~ hard coded here...
+    // step size for fastest termalisation
+    double h = 10;
+    // estimated autocorrelation time for the corresponding step size (we will mulitply it with some bigger number... just in case)
+    int const tauExp = 50;
+
+    /*
+    // lattice patameters
+    std::vector<int> NtContainer{120, 150, 200, 240, 400, 600, 1200, 1500, 2000, 2400, 4000, 6000};
+    std::vector<double> latticeSpacingContainer{1., 0.8, 0.6, 0.5, 0.3, 0.2, 0.1, 0.08, 0.06, 0.05, 0.03, 0.02};
+
+    // loop for lattice spacings (effectice lattice spacing)
+    for (int iTest = 0; iTest < 12; iTest++)
+    {
+        // setting lattice parameters
+        Nt = NtContainer[iTest];
+        latticeSpacing = latticeSpacingContainer[iTest];
+        // generate initial path (cold start)
+        pathInit.clear();
+        pathInit.resize(Nt);
+        std::generate(pathInit.begin(), pathInit.end(), []() { return 0.; });
+
+        // path to update iteratively
+        pathN = pathInit;
+        // separation number
+        int sepTrigger = 1;
+
+        // MEASUREMENT
+        std::vector<double> meansMeasured;
+        std::vector<double> varianceMeasured;
+        std::vector<double> autoCorrMeasured;
+
+        // start loop for sweeps
+        for (int iSweep = 0; iSweep < N_MC_simulation; iSweep++)
+        {
+            // random number generation for site visiting
+            std::uniform_int_distribution distrIntAdapt(0, Nt - 1);
+            // random number generator lambdas
+            auto randIntAdapt = [&distrIntAdapt, &gen]() { return (int)distrIntAdapt(gen); };
+
+            // determine which sites to visit in given MC sweep
+            visitSites.clear();
+            visitSites.resize(Nt);
+            std::generate(visitSites.begin(), visitSites.end(), randIntAdapt);
+            // generate random numbers for acceptance of site updates
+            acceptanceVec.clear();
+            acceptanceVec.resize(Nt);
+            std::generate(acceptanceVec.begin(), acceptanceVec.end(), randReal);
+
+            // loop for sites
+            for (int iSite = 0; iSite < Nt; iSite++)
+            {
+                // which site to update in the time lattice
+                int tau = visitSites[iSite];
+                // time slices ~ before and after
+                std::pair<int, int> tauBA = PeriodicBoundary(tau, Nt);
+                //int tauBefore = tauBA.first;
+                int tauAfter = tauBA.second;
+                // possible new coordinate in path at the chosen site
+                double tmpSite = pathN[tau] + h * (randReal() - 0.5);
+
+                // calculate difference in Euclidean action (only one member of the summation) ~ S_new - S_old
+                double sOld = HarmOsc_S(latticeSpacing, mass, omega, pathN[tau], pathN[tauAfter]);
+                double sNew = HarmOsc_S(latticeSpacing, mass, omega, tmpSite, pathN[tauAfter]);
+                double deltaS = sNew - sOld;
+
+                // accept or reject change in site
+                if (Rate(deltaS) > acceptanceVec[iSite] || Rate(deltaS) == 1)
+                    pathN[tau] = tmpSite;
+            }
+
+            // MEASUREMENTS TRIGGERED
+            // to save or not to save...
+            sepTrigger++;
+            if (sepTrigger % tauExp == 0)
+            {
+                // calculate mean
+                meansMeasured.push_back(MomentNth(pathN, 1, Nt));
+                // calculate second moment
+                varianceMeasured.push_back(MomentNth(pathN, 2, Nt));
+            }
+        }
+
+        // write results to screen
+        std::cout << latticeSpacing << " "
+                  << Nt << " "
+                  //<< MomentNth(meansMeasured, 1, static_cast<int>(meansMeasured.size())) << " "
+                  << MomentNth(varianceMeasured, 1, static_cast<int>(varianceMeasured.size())) << " ";
+        for (double i : varianceMeasured)
+            std::cout << i << " ";
+        std::cout << std::endl;
+    }
+    */
 
     //  ///////////\\\\\\\\\\\ 
     // ||| SIMULATION START |||
     //  \\\\\\\\\\\///////////
 
-    // ideal step size determined from previous part via python analysis ~ hard coded here...
-    // step size for fastest termalisation
-    int const hStep = 25;
-    // determined autocorrelation time for the corresponding step size (we will mulitply it with 100... just in case)
-    int const tauExp = 200;
+    // setting lattice parameters
+    Nt = 60;
+    latticeSpacing = 2;
+
+    // harmonic oscillator parameters
+    mass = 1.;
+    omega = 1.;
+
+    // anharmonic oscillator parameters
+    double const mu = 5.;
+    double const lambda = 1.;
+
+    // path to update iteratively
+    pathN = pathInit;
+    // separation number
+    int sepTrigger = 1;
 
     // MEASUREMENT
     std::vector<double> meansMeasured;
     std::vector<double> varianceMeasured;
     std::vector<double> autoCorrMeasured;
 
-    // path to update iteratively
+    // generate initial path (cold start)
+    pathInit.clear();
+    pathInit.resize(Nt);
+    std::generate(pathInit.begin(), pathInit.end(), []() { return 4.5; });
+
     pathN = pathInit;
-    // separation number
-    int sepTrigger = 1;
+
     // start loop for sweeps
     for (int iSweep = 0; iSweep < N_MC_simulation; iSweep++)
     {
+        // random number generation for site visiting
+        std::uniform_int_distribution distrIntAdapt(0, Nt - 1);
+        // random number generator lambdas
+        auto randIntAdapt = [&distrIntAdapt, &gen]() { return (int)distrIntAdapt(gen); };
+
         // determine which sites to visit in given MC sweep
-        std::generate(visitSites.begin(), visitSites.end(), randInt);
+        visitSites.clear();
+        visitSites.resize(Nt);
+        std::generate(visitSites.begin(), visitSites.end(), randIntAdapt);
         // generate random numbers for acceptance of site updates
-        std::generate(acceptanceVec.begin(), acceptanceVec.end(), rand_01);
+        acceptanceVec.clear();
+        acceptanceVec.resize(Nt);
+        std::generate(acceptanceVec.begin(), acceptanceVec.end(), randReal);
 
         // loop for sites
         for (int iSite = 0; iSite < Nt; iSite++)
@@ -211,45 +390,53 @@ int main(int, char **argv)
             int tau = visitSites[iSite];
             // time slices ~ before and after
             std::pair<int, int> tauBA = PeriodicBoundary(tau, Nt);
-            int tauBefore = tauBA.first, tauAfter = tauBA.second;
+            //int tauBefore = tauBA.first;
+            int tauAfter = tauBA.second;
             // possible new coordinate in path at the chosen site
-            double tmpSite = pathN[tau] + randReal();
+            double tmpSite = pathN[tau] + h * (randReal() - 0.5);
 
             // calculate difference in Euclidean action (only one member of the summation) ~ S_new - S_old
-            double sOld = HarmOsc_S(mass, frequency, pathN[tauBefore], pathN[tau], pathN[tauAfter]);
-            double sNew = HarmOsc_S(mass, frequency, pathN[tauBefore], tmpSite, pathN[tauAfter]);
+            // harmonic
+            //double sOld = HarmOsc_S(latticeSpacing, mass, omega, pathN[tau], pathN[tauAfter]);
+            //double sNew = HarmOsc_S(latticeSpacing, mass, omega, tmpSite, pathN[tauAfter]);
+            // anharmonic
+            //double sOld = AnHarmOsc_S(latticeSpacing, mass, mu, lambda, pathN[tau], pathN[tauAfter]);
+            //double sNew = AnHarmOsc_S(latticeSpacing, mass, mu, lambda, tmpSite, pathN[tauAfter]);
+            // Morse
+            //double sOld = Morse_S(latticeSpacing, mass, lambda, 5, pathN[tau], pathN[tauAfter]);
+            //double sNew = Morse_S(latticeSpacing, mass, lambda, 5, tmpSite, pathN[tauAfter]);
+            // Pöschl-Teller
+            //double sOld = PT_S(latticeSpacing, mass, lambda, pathN[tau], pathN[tauAfter]);
+            //double sNew = PT_S(latticeSpacing, mass, lambda, tmpSite, pathN[tauAfter]);
+            // finite potential well
+            double sOld = Well_S(latticeSpacing, mass, lambda, 5, pathN[tau], pathN[tauAfter]);
+            double sNew = Well_S(latticeSpacing, mass, lambda, 5, tmpSite, pathN[tauAfter]); 
+            // Lennard-Jones
+            //double sOld = LJ_S(latticeSpacing, mass, 100, 3.3, pathN[tau], pathN[tauAfter]);
+            //double sNew = LJ_S(latticeSpacing, mass, 100, 3.3, tmpSite, pathN[tauAfter]); 
+            // Coulomb
+            //double sOld = Coulomb_S(latticeSpacing, mass, lambda, pathN[tau], pathN[tauAfter]);
+            //double sNew = Coulomb_S(latticeSpacing, mass, lambda, tmpSite, pathN[tauAfter]); 
             double deltaS = sNew - sOld;
 
             // accept or reject change in site
-            if (Rate(deltaS) > acceptanceVec[iSite])
+            if (Rate(deltaS) > acceptanceVec[iSite] || Rate(deltaS) == 1)
                 pathN[tau] = tmpSite;
         }
 
-        // MEASUREMENTS
+        // MEASUREMENTS TRIGGERED
         // to save or not to save...
         sepTrigger++;
         if (sepTrigger % tauExp == 0)
         {
             // calculate mean
-            meansMeasured.push_back(Mean(pathN, Nt));
-            // calculate variance
-            varianceMeasured.push_back(Variance(pathN, Nt));
-
-            // calculate two-point correlation function to estimate autocorrelation times
-            double tmpCorr = 0.;
-            for (int tau = 0; tau < Nt; tau++)
-            {
-                tmpCorr += TwoPointCorr(pathN, Nt, tau);
-            }
-
-            // averaged autocorrelation function over time separation
-            autoCorrMeasured.push_back(tmpCorr / Nt);
-
-            // jackknife analysis in outer python notebook
+            meansMeasured.push_back(MomentNth(pathN, 1, Nt));
+            // calculate second moment
+            varianceMeasured.push_back(MomentNth(pathN, 2, Nt));
+            // path
+            for (double i : pathN)
+                std::cout << i << " ";
+            std::cout << std::endl;
         }
     }
-
-    // write results to screen
-    for (int i = 0; i < static_cast<int>(meansMeasured.size()); i++)
-        std::cout << meansMeasured[i] << " " << varianceMeasured[i] << " " << autoCorrMeasured[i] << std::endl;
 }
