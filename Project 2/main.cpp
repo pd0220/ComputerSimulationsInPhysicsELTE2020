@@ -241,7 +241,7 @@ int main(int, char **)
 
     // ideal step size determined from previous part via python analysis ~ hard coded here...
     // step size for fastest termalisation
-    double h = 10;
+    double h = 5;
     // estimated autocorrelation time for the corresponding step size (we will mulitply it with some bigger number... just in case)
     int const tauExp = 50;
 
@@ -338,8 +338,8 @@ int main(int, char **)
     //  \\\\\\\\\\\///////////
 
     // setting lattice parameters
-    Nt = 60;
-    latticeSpacing = 2;
+    Nt = 120;
+    latticeSpacing = 1;
 
     // harmonic oscillator parameters
     mass = 1.;
@@ -411,12 +411,6 @@ int main(int, char **)
             // finite potential well
             double sOld = Well_S(latticeSpacing, mass, lambda, 5, pathN[tau], pathN[tauAfter]);
             double sNew = Well_S(latticeSpacing, mass, lambda, 5, tmpSite, pathN[tauAfter]); 
-            // Lennard-Jones
-            //double sOld = LJ_S(latticeSpacing, mass, 100, 3.3, pathN[tau], pathN[tauAfter]);
-            //double sNew = LJ_S(latticeSpacing, mass, 100, 3.3, tmpSite, pathN[tauAfter]); 
-            // Coulomb
-            //double sOld = Coulomb_S(latticeSpacing, mass, lambda, pathN[tau], pathN[tauAfter]);
-            //double sNew = Coulomb_S(latticeSpacing, mass, lambda, tmpSite, pathN[tauAfter]); 
             double deltaS = sNew - sOld;
 
             // accept or reject change in site
