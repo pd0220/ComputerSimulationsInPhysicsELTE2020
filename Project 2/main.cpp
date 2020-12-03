@@ -235,103 +235,11 @@ int main(int, char **)
     }
     */
 
-    //  ///////////\\\\\\\\\\\ 
-    // ||| ANALYTICAL TESTS |||
-    //  \\\\\\\\\\\///////////
-
     // ideal step size determined from previous part via python analysis ~ hard coded here...
     // step size for fastest termalisation
     double h = 5;
     // estimated autocorrelation time for the corresponding step size (we will mulitply it with some bigger number... just in case)
     int const tauExp = 50;
-
-    /*
-    // lattice patameters
-    std::vector<int> NtContainer{120, 150, 200, 240, 400, 600, 1200, 1500, 2000, 2400, 4000, 6000};
-    std::vector<double> latticeSpacingContainer{1., 0.8, 0.6, 0.5, 0.3, 0.2, 0.1, 0.08, 0.06, 0.05, 0.03, 0.02};
-
-    // loop for lattice spacings (effectice lattice spacing)
-    for (int iTest = 0; iTest < 12; iTest++)
-    {
-        // setting lattice parameters
-        Nt = NtContainer[iTest];
-        latticeSpacing = latticeSpacingContainer[iTest];
-        // generate initial path (cold start)
-        pathInit.clear();
-        pathInit.resize(Nt);
-        std::generate(pathInit.begin(), pathInit.end(), []() { return 0.; });
-
-        // path to update iteratively
-        pathN = pathInit;
-        // separation number
-        int sepTrigger = 1;
-
-        // MEASUREMENT
-        std::vector<double> meansMeasured;
-        std::vector<double> varianceMeasured;
-        std::vector<double> autoCorrMeasured;
-
-        // start loop for sweeps
-        for (int iSweep = 0; iSweep < N_MC_simulation; iSweep++)
-        {
-            // random number generation for site visiting
-            std::uniform_int_distribution distrIntAdapt(0, Nt - 1);
-            // random number generator lambdas
-            auto randIntAdapt = [&distrIntAdapt, &gen]() { return (int)distrIntAdapt(gen); };
-
-            // determine which sites to visit in given MC sweep
-            visitSites.clear();
-            visitSites.resize(Nt);
-            std::generate(visitSites.begin(), visitSites.end(), randIntAdapt);
-            // generate random numbers for acceptance of site updates
-            acceptanceVec.clear();
-            acceptanceVec.resize(Nt);
-            std::generate(acceptanceVec.begin(), acceptanceVec.end(), randReal);
-
-            // loop for sites
-            for (int iSite = 0; iSite < Nt; iSite++)
-            {
-                // which site to update in the time lattice
-                int tau = visitSites[iSite];
-                // time slices ~ before and after
-                std::pair<int, int> tauBA = PeriodicBoundary(tau, Nt);
-                //int tauBefore = tauBA.first;
-                int tauAfter = tauBA.second;
-                // possible new coordinate in path at the chosen site
-                double tmpSite = pathN[tau] + h * (randReal() - 0.5);
-
-                // calculate difference in Euclidean action (only one member of the summation) ~ S_new - S_old
-                double sOld = HarmOsc_S(latticeSpacing, mass, omega, pathN[tau], pathN[tauAfter]);
-                double sNew = HarmOsc_S(latticeSpacing, mass, omega, tmpSite, pathN[tauAfter]);
-                double deltaS = sNew - sOld;
-
-                // accept or reject change in site
-                if (Rate(deltaS) > acceptanceVec[iSite] || Rate(deltaS) == 1)
-                    pathN[tau] = tmpSite;
-            }
-
-            // MEASUREMENTS TRIGGERED
-            // to save or not to save...
-            sepTrigger++;
-            if (sepTrigger % tauExp == 0)
-            {
-                // calculate mean
-                meansMeasured.push_back(MomentNth(pathN, 1, Nt));
-                // calculate second moment
-                varianceMeasured.push_back(MomentNth(pathN, 2, Nt));
-            }
-        }
-
-        // write results to screen
-        std::cout << latticeSpacing << " "
-                  << Nt << " "
-                  //<< MomentNth(meansMeasured, 1, static_cast<int>(meansMeasured.size())) << " "
-                  << MomentNth(varianceMeasured, 1, static_cast<int>(varianceMeasured.size())) << " ";
-        for (double i : varianceMeasured)
-            std::cout << i << " ";
-        std::cout << std::endl;
-    }
-    */
 
     //  ///////////\\\\\\\\\\\ 
     // ||| SIMULATION START |||
